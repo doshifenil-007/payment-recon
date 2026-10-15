@@ -45,7 +45,7 @@ async function seed() {
   );
   const merchantId = merchant.rows[0]!.id;
 
-  for (const u of USERS) {
+  for (const u of users) {
     const hash = await bcrypt.hash(u.password, 12);
     await pool.query(
       `INSERT INTO users (merchant_id, email, password_hash, role) VALUES ($1, $2, $3, $4)
