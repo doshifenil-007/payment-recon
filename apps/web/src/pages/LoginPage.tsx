@@ -34,11 +34,6 @@ export function LoginPage() {
     }
   };
 
-  const fill = (e: string, p: string) => {
-    setEmail(e);
-    setPassword(p);
-  };
-
   return (
     <div className="auth-page">
       <div className="auth-card">
@@ -122,21 +117,13 @@ export function LoginPage() {
           </button>
         </form>
 
-        {/* Demo credentials */}
+        {/* Accounts are provisioned by the application administrator. */}
         <div className="auth-hint">
           <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
-            Demo accounts
-          </div>
-          <div className="auth-hint-row" style={{ cursor: 'pointer' }} onClick={() => fill('admin@demo.test', 'Admin123!')}>
-            <span className="auth-hint-label">Admin (full access)</span>
-            <span className="auth-hint-val">admin@demo.test</span>
-          </div>
-          <div className="auth-hint-row" style={{ cursor: 'pointer' }} onClick={() => fill('viewer@demo.test', 'Viewer123!')}>
-            <span className="auth-hint-label">Viewer (read-only)</span>
-            <span className="auth-hint-val">viewer@demo.test</span>
+            Sign-in help
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 4 }}>
-            Click a row to auto-fill credentials
+            Use the credentials provided by your administrator.
           </div>
         </div>
       </div>

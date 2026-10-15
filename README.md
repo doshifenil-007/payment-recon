@@ -12,7 +12,8 @@ cp apps/api/.env.example apps/api/.env      # then edit the secrets
 createdb payment_recon && createdb payment_recon_test
 
 npm run db:migrate
-npm run db:seed                             # admin@demo.test / Admin123!  viewer@demo.test / Viewer123!
+# Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD in your shell, then run:
+npm run db:seed
 
 npm run dev:api                             # terminal 1: API on :4000
 npm run dev:worker                          # terminal 2: retry worker
@@ -22,7 +23,7 @@ npm run gateway -- --payments 3             # terminal 3: send signed webhooks, 
 Log in and inspect:
 
 ```bash
-curl -c jar -H 'content-type: application/json' -d '{"email":"admin@demo.test","password":"Admin123!"}' localhost:4000/api/auth/login
+curl -c jar -H 'content-type: application/json' -d '{"email":"your-admin@example.com","password":"your-admin-password"}' localhost:4000/api/auth/login
 curl -b jar localhost:4000/api/payments
 curl -b jar localhost:4000/api/events
 ```
