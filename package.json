@@ -1,0 +1,15 @@
+{
+  "name": "payment-recon",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace @payment-recon/api",
+    "db:migrate": "npm run db:migrate --workspace @payment-recon/api",
+    "db:seed": "npm run db:seed --workspace @payment-recon/api",
+    "dev:api": "npm run dev --workspace @payment-recon/api",
+    "dev:worker": "npm run worker --workspace @payment-recon/api",
+    "gateway": "npm run gateway --workspace @payment-recon/api",
+    "dev:web": "npm run dev --workspace @payment-recon/web"
+  }
+}
