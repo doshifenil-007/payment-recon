@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.local
 *.log
 
 
@@ -165,3 +166,4 @@ junit.xml
 
 
 *.map
+.neon

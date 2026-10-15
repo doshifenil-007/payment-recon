@@ -1,8 +1,12 @@
 {
   "name": "payment-recon",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
+    "build": "npm run build --workspace @payment-recon/web && npm run typecheck --workspace @payment-recon/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspace @payment-recon/api",
     "db:migrate": "npm run db:migrate --workspace @payment-recon/api",
@@ -11,5 +15,9 @@
     "dev:worker": "npm run worker --workspace @payment-recon/api",
     "gateway": "npm run gateway --workspace @payment-recon/api",
     "dev:web": "npm run dev --workspace @payment-recon/web"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.1",
+    "@neon/env": "^1.6.2"
   }
 }
