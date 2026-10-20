@@ -6,7 +6,7 @@ import {
   type GatewayEventType,
 } from '@payment-recon/shared';
 import { env } from '../../config/env';
-import { pool } from '../../lib/db';
+import { pool, withTransaction } from '../../lib/db';
 import { requireAuth, requireRole } from '../../middleware/auth';
 import { ingestEvent } from '../webhooks/ingest-event';
 import { signatureHeader } from '../webhooks/signature';
@@ -353,8 +353,16 @@ async function executeTestPayment(
         const lastErr = dbOutcome.recentEvents[0]?.lastError;
         errorReason = lastErr ?? 'Permanent rejection';
         message = `Transition rejected: ${lastErr ?? 'Invalid status transition'}`;
+      } else if (ingestRes.status === 'FAILED') {
+        status = 'FAILED';
+        const lastErr = dbOutcome.recentEvents[0]?.lastError;
+        errorReason = lastErr ?? 'Processing failed (queued for retry)';
+        message = `Processing failed: ${errorReason}. Backoff timer scheduled for background worker.`;
       } else {
-        status = dbOutcome.payment?.status === 'SUCCEEDED' ? 'PROCESSED' : 'PENDING';
+        // A successfully applied payment.failed event is still a successfully
+        // processed event. Its resulting payment status is shown separately in
+        // databaseOutcome.payment.status.
+        status = 'PROCESSED';
         message = `Event applied to existing payment ${paymentId}. Current status: ${dbOutcome.payment?.status}.`;
       }
     } else {
@@ -507,13 +515,27 @@ testingRouter.post('/batch', requireRole('ADMIN'), async (req, res) => {
 testingRouter.post('/reset', requireRole('ADMIN'), async (req, res) => {
   const merchantId = req.user!.merchantId;
 
-  await pool.query('DELETE FROM audit_logs WHERE merchant_id = $1', [merchantId]);
-  await pool.query('DELETE FROM webhook_events WHERE merchant_id = $1', [merchantId]);
-  await pool.query('DELETE FROM payments WHERE merchant_id = $1', [merchantId]);
+  const deleted = await withTransaction(async (client) => {
+    const audits = await client.query('DELETE FROM audit_logs WHERE merchant_id = $1', [merchantId]);
+    const attempts = await client.query(
+      `DELETE FROM webhook_event_attempts
+        WHERE webhook_event_id IN (SELECT id FROM webhook_events WHERE merchant_id = $1)`,
+      [merchantId],
+    );
+    const events = await client.query('DELETE FROM webhook_events WHERE merchant_id = $1', [merchantId]);
+    const payments = await client.query('DELETE FROM payments WHERE merchant_id = $1', [merchantId]);
+    return {
+      auditLogs: audits.rowCount ?? 0,
+      eventAttempts: attempts.rowCount ?? 0,
+      webhookEvents: events.rowCount ?? 0,
+      payments: payments.rowCount ?? 0,
+    };
+  });
 
   res.json({
     success: true,
-    message: 'Test data reset: payments, webhook events, and audit logs cleared for current merchant.',
+    deleted,
+    message: 'Payment test data reset for the current merchant. Users, merchant settings, and schema were kept.',
   });
 });
 

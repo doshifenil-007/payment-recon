@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────
 
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   FlaskConical,
   Play,
@@ -94,10 +95,19 @@ const PRESET_SCENARIOS: Array<{
   {
     name: 'Invalid Lifecycle Transition',
     badge: 'State Machine',
-    description: 'Payment succeeds, followed by an illegal transition to payment.failed. Verifies permanent rejection.',
+    description: 'Payment succeeds, then payment.failed is rejected because SUCCEEDED → FAILED is not an allowed transition.',
     requests: [
       { id: '1', paymentId: 'PAY_STATE_1', amount: 450, currency: 'INR', eventType: 'full_flow' },
       { id: '2', paymentId: 'PAY_STATE_1', amount: 450, currency: 'INR', eventType: 'payment.failed' },
+    ],
+  },
+  {
+    name: 'Create Failed Payment',
+    badge: 'Payment Lifecycle',
+    description: 'Creates a fresh PENDING payment, then applies payment.failed. The final payment appears under Failed.',
+    requests: [
+      { id: '1', paymentId: 'PAY_FAIL', amount: 450, currency: 'INR', eventType: 'payment.created' },
+      { id: '2', paymentId: 'PAY_FAIL', amount: 450, currency: 'INR', eventType: 'payment.failed' },
     ],
   },
 ];
@@ -105,15 +115,14 @@ const PRESET_SCENARIOS: Array<{
 let nextRowId = 10;
 
 export function PaymentTestingPage() {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const { success, error: toastError, info } = useToast();
 
   // Request list state
   const [requests, setRequests] = useState<PaymentTestRequestInput[]>([
-    { id: '1', paymentId: 'PAY101', amount: 500, currency: 'INR', eventType: 'full_flow' },
-    { id: '2', paymentId: 'PAY101', amount: 500, currency: 'INR', eventType: 'payment.created' },
-    { id: '3', paymentId: 'PAY102', amount: 300, currency: 'INR', eventType: 'full_flow' },
+    { id: '1', paymentId: `PAY_TEST_${crypto.randomUUID().slice(0, 8).toUpperCase()}`, amount: 500, currency: 'INR', eventType: 'full_flow' },
   ]);
 
   // Options & controls
@@ -175,17 +184,33 @@ export function PaymentTestingPage() {
   };
 
   const loadScenario = (scenario: (typeof PRESET_SCENARIOS)[0]) => {
+    const runId = crypto.randomUUID().slice(0, 8).toUpperCase();
+    const paymentIds = new Map<string, string>();
     setRequests(
-      scenario.requests.map((r, i) => ({
-        ...r,
-        id: String(nextRowId++ + i),
-      })),
+      scenario.requests.map((r, i) => {
+        let paymentId = r.paymentId;
+        if (paymentId) {
+          let uniqueId = paymentIds.get(paymentId);
+          if (!uniqueId) {
+            uniqueId = `${paymentId}_${runId}`;
+            paymentIds.set(paymentId, uniqueId);
+          }
+          paymentId = uniqueId;
+        }
+        return { ...r, id: String(nextRowId++ + i), paymentId };
+      }),
     );
-    if (scenario.concurrent !== undefined) {
-      setConcurrent(scenario.concurrent);
-    }
+    // Each scenario declares its execution mode. In particular, lifecycle
+    // scenarios must run in order so payment.created finishes before payment.failed.
+    setConcurrent(Boolean(scenario.concurrent));
     success('Loaded Test Scenario', scenario.name);
   };
+
+  const refreshDatabaseViews = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['payments'] }),
+    queryClient.invalidateQueries({ queryKey: ['events'] }),
+    queryClient.invalidateQueries({ queryKey: ['audit'] }),
+  ]);
 
   // Execution
   const handleSendSingle = async (index: number) => {
@@ -207,6 +232,7 @@ export function PaymentTestingPage() {
       });
 
       setResults((prev) => [res, ...prev]);
+      await refreshDatabaseViews();
 
       if (res.status === 'PROCESSED') {
         success('Payment Processed', `${res.paymentId}: Processed and stored in DB.`);
@@ -244,6 +270,7 @@ export function PaymentTestingPage() {
 
       const res = await testingApi.sendBatch(cleanReqs, concurrent);
       setResults((prev) => [...res.results, ...prev]);
+      await refreshDatabaseViews();
 
       success(
         'Batch Execution Complete',
@@ -257,13 +284,18 @@ export function PaymentTestingPage() {
   };
 
   const handleResetData = async () => {
-    if (!window.confirm('Reset all test payments, events, and audit logs for your demo merchant? This provides a clean slate for evaluation.')) {
+    if (!window.confirm('Clear all payments, webhook events, event attempts, and audit logs for the current merchant? Users, merchant settings, and schema will be kept.')) {
       return;
     }
     try {
-      await testingApi.reset();
+      const result = await testingApi.reset();
       setResults([]);
-      success('Database Reset', 'Payments, events, and audit logs cleared cleanly for demo merchant.');
+      setInspectResult(null);
+      await refreshDatabaseViews();
+      success(
+        'Payment Data Reset',
+        `Deleted ${result.deleted.payments} payments, ${result.deleted.webhookEvents} events, ${result.deleted.eventAttempts} event attempts, and ${result.deleted.auditLogs} audit logs for this merchant.`,
+      );
     } catch (err: unknown) {
       toastError('Reset Failed', err instanceof Error ? err.message : String(err));
     }
@@ -329,10 +361,10 @@ export function PaymentTestingPage() {
                 className="btn btn-ghost btn-sm"
                 style={{ color: 'var(--color-rose)' }}
                 onClick={handleResetData}
-                title="Clear test payments, events, and audit logs"
+                title="Clear payment, event, attempt, and audit data for the current merchant"
               >
                 <RotateCcw size={14} />
-                Reset DB Test Data
+                Reset Payment Data
               </button>
             )}
           </div>
@@ -665,7 +697,7 @@ export function PaymentTestingPage() {
                         <option value="full_flow">Full Flow (Create → Succeed)</option>
                         <option value="payment.created">payment.created (Pending)</option>
                         <option value="payment.succeeded">payment.succeeded (Success)</option>
-                        <option value="payment.failed">payment.failed (Failed)</option>
+                        <option value="payment.failed">payment.failed (requires a pending payment)</option>
                         <option value="refund.created">refund.created (Refunded)</option>
                       </select>
                     </td>

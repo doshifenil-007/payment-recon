@@ -121,7 +121,11 @@ export const testingApi = {
     }),
 
   reset: () =>
-    request<{ success: boolean; message: string }>('/testing/reset', {
+    request<{
+      success: boolean;
+      message: string;
+      deleted: { payments: number; webhookEvents: number; eventAttempts: number; auditLogs: number };
+    }>('/testing/reset', {
       method: 'POST',
     }),
 
