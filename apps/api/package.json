@@ -9,6 +9,7 @@
     "gateway": "tsx src/mock-gateway/cli.ts",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "db:create-viewer": "tsx src/db/create-viewer.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
